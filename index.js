@@ -28,7 +28,7 @@ const events = {
   11: 'mousewheel'
 };
 
-const reverseEvents = {};
+let reverseEvents = {};
 
 for (let code in events) {
   reverseEvents[events[code]] = code;
