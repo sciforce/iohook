@@ -11,6 +11,7 @@
 #include <pthread.h>
 #endif
 #include <queue>
+#include <uiohook.h>
 
 using namespace v8;
 using Callback = Nan::Callback;
@@ -518,15 +519,131 @@ NAN_METHOD(StopHook) {
   }
 }
 
+template <typename T>
+inline bool GetObjectProperty(v8::Local<v8::Object> obj, const std::string &sPropertyName, T *out) {
+
+  v8::Local<v8::String> lPropertyName = Nan::New(sPropertyName).ToLocalChecked();
+  Nan::MaybeLocal<v8::Value> mValue = Nan::Get(obj, lPropertyName);
+  if (mValue.IsEmpty()) {
+    return false;
+  }
+  Nan::Maybe<T> mOut = Nan::To<T>(mValue.ToLocalChecked());
+  if (mOut.IsNothing()) {
+    return false;
+  }
+  *out = mOut.FromJust();
+  return true;
+}
+
+NAN_METHOD(PostEvent) {
+  uiohook_event sUiohookEvent = uiohook_event();
+  bool result;
+  uint32_t iEventType;
+  uint32_t iEventMask;
+  event_type eEventType;
+
+  if (info.Length() != 1)
+  {
+    Nan::ThrowTypeError("Wrong number of arguments");
+    return;
+  }
+  if (!info[0]->IsObject()) {
+    Nan::ThrowTypeError("Argument should be an object");
+    return;
+  }
+  v8::Local<v8::Object> event = Nan::To<v8::Object>(info[0]).ToLocalChecked();
+
+  result = GetObjectProperty(event, "type", &iEventType);
+  if (!result) {
+      Nan::ThrowTypeError("Event type is not an integer");
+      return;
+  }
+  eEventType = static_cast<event_type>(iEventType);
+  sUiohookEvent.type = eEventType;
+
+  result = GetObjectProperty(event, "mask", &iEventMask);
+
+  if (! result) {
+    Nan::ThrowTypeError("Event mask is not an integer");
+    return;
+  }
+  sUiohookEvent.mask = static_cast<uint16_t>(iEventMask);
+
+  if ((eEventType >= EVENT_KEY_TYPED) && (eEventType <= EVENT_KEY_RELEASED)) {
+    // This is a keyboard event. Only keycode is required to send it
+    v8::Local<v8::Value> vKeyboard = Nan::Get(event, Nan::New("keyboard").ToLocalChecked()).ToLocalChecked();
+    if (!vKeyboard->IsObject()) {
+      Nan::ThrowTypeError("'keyboard' is not an object");
+      return;
+    }
+    v8::Local<v8::Object> oKeyboard = Nan::To<v8::Object>(vKeyboard).ToLocalChecked();
+    keyboard_event_data sKeyboardEvent = keyboard_event_data();
+
+    uint32_t iKeycode;
+    result = GetObjectProperty(oKeyboard, "keycode", &iKeycode);
+    if (!result) {
+        Nan::ThrowTypeError("keyboard.keycode is not an integer");
+        return;
+    }
+    sKeyboardEvent.keycode = static_cast<uint16_t>(iKeycode);
+    sKeyboardEvent.keychar = CHAR_UNDEFINED;
+
+    sUiohookEvent.data.keyboard = sKeyboardEvent;
+    hook_post_event(&sUiohookEvent);
+    info.GetReturnValue().Set(Nan::New(true));
+    return;
+  } else if ((eEventType >= EVENT_MOUSE_CLICKED) && (eEventType <= EVENT_MOUSE_DRAGGED)) {
+    // Mouse event. We need button, x and y parameters
+    v8::Local<v8::Value> vMouse = Nan::Get(event, Nan::New("mouse").ToLocalChecked()).ToLocalChecked();
+    if (!vMouse->IsObject()) {
+      Nan::ThrowTypeError("'mouse' is not an object");
+      return;
+    }
+    v8::Local<v8::Object> oMouse = Nan::To<v8::Object>(vMouse).ToLocalChecked();
+    mouse_event_data sMouseEvent = mouse_event_data();
+
+    uint32_t button, x, y;
+    result = GetObjectProperty(oMouse, "button", &button);
+    if (!result) {
+      Nan::ThrowTypeError("mouse.button is not an integer");
+      return;
+    }
+    sMouseEvent.button = static_cast<uint16_t>(button);
+
+    result = GetObjectProperty(oMouse, "x", &x);
+    if (!result) {
+      Nan::ThrowTypeError("mouse.x is not an integer");
+      return;
+    }
+    sMouseEvent.x = static_cast<uint16_t>(x);
+
+    result = GetObjectProperty(oMouse, "y", &y);
+    if (!result) {
+      Nan::ThrowTypeError("mouse.y is not an integer");
+      return;
+    }
+    sMouseEvent.y = static_cast<uint16_t>(y);
+
+    sUiohookEvent.data.mouse = sMouseEvent;
+    hook_post_event(&sUiohookEvent);
+    info.GetReturnValue().Set(Nan::New(true));
+    return;
+  }
+  info.GetReturnValue().Set(Nan::New(false));
+}
+
 NAN_MODULE_INIT(Init) {
   Nan::Set(target, Nan::New<String>("startHook").ToLocalChecked(),
   Nan::GetFunction(Nan::New<FunctionTemplate>(StartHook)).ToLocalChecked());
 
   Nan::Set(target, Nan::New<String>("stopHook").ToLocalChecked(),
   Nan::GetFunction(Nan::New<FunctionTemplate>(StopHook)).ToLocalChecked());
-  
+
   Nan::Set(target, Nan::New<String>("debugEnable").ToLocalChecked(),
   Nan::GetFunction(Nan::New<FunctionTemplate>(DebugEnable)).ToLocalChecked());
+
+  Nan::Set(target, Nan::New<String>("postEvent").ToLocalChecked(),
+  Nan::GetFunction(Nan::New<FunctionTemplate>(PostEvent)).ToLocalChecked());
 }
 
 NODE_MODULE(nodeHook, Init)
