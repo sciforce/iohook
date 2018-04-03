@@ -28,6 +28,12 @@ const events = {
   11: 'mousewheel'
 };
 
+const reverseEvents = {};
+
+for (let code in events) {
+  reverseEvents[events[code]] = code;
+}
+
 class IOHook extends EventEmitter {
   constructor() {
     super();
@@ -36,6 +42,17 @@ class IOHook extends EventEmitter {
     
     this.load();
     this.setDebug(false);
+  }
+
+  postEvent(type, event) {
+    const eventCode = reverseEvents[type];
+    let rawEvent = { "type": eventCode };
+    if (eventCode <= 5) {
+      rawEvent.keyboard = event;
+    } else {
+      rawEvent.mouse = event;
+    }
+    NodeHookAddon.postEvent(rawEvent);
   }
 
   /**

@@ -16,6 +16,11 @@ declare class IOHook extends EventEmitter {
   stop(): void
 
   /**
+   * Post event
+   */
+  postEvent(eventType: string, event: IOHookEvent): boolean
+
+  /**
    * Manual native code load. Call this function only if unload called before
    */
   load(): void
