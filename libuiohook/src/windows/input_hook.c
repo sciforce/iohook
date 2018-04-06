@@ -198,6 +198,17 @@ void hook_stop_proc() {
 	dispatch_event(&event);
 }
 
+static void get_wnd_rect(rect* rc)
+{
+	HWND hwnd = GetForegroundWindow();
+	RECT _rc = { 0 };
+	GetWindowRect(hwnd, &_rc);
+	rc->left = _rc.left;
+	rc->top = _rc.top;
+	rc->right = _rc.right;
+	rc->bottom = _rc.bottom;
+}
+
 static void process_key_pressed(KBDLLHOOKSTRUCT *kbhook) {
 	// Check and setup modifiers.
 	if		(kbhook->vkCode == VK_LSHIFT)	{ set_modifier_mask(MASK_SHIFT_L);		}
@@ -222,6 +233,8 @@ static void process_key_pressed(KBDLLHOOKSTRUCT *kbhook) {
 	event.data.keyboard.keycode = keycode_to_scancode(kbhook->vkCode, kbhook->flags);
 	event.data.keyboard.rawcode = kbhook->vkCode;
 	event.data.keyboard.keychar = CHAR_UNDEFINED;
+
+	get_wnd_rect(&event.rc);
 
 	logger(LOG_LEVEL_INFO,	"%s [%u]: Key %#X pressed. (%#X)\n",
 			__FUNCTION__, __LINE__, event.data.keyboard.keycode, event.data.keyboard.rawcode);
@@ -281,6 +294,8 @@ static void process_key_released(KBDLLHOOKSTRUCT *kbhook) {
 	event.data.keyboard.keycode = keycode_to_scancode(kbhook->vkCode, kbhook->flags);
 	event.data.keyboard.rawcode = kbhook->vkCode;
 	event.data.keyboard.keychar = CHAR_UNDEFINED;
+
+	get_wnd_rect(&event.rc);
 
 	logger(LOG_LEVEL_INFO,	"%s [%u]: Key %#X released. (%#X)\n",
 			__FUNCTION__, __LINE__, event.data.keyboard.keycode, event.data.keyboard.rawcode);
@@ -363,6 +378,8 @@ static void process_button_pressed(MSLLHOOKSTRUCT *mshook, uint16_t button) {
 	event.data.mouse.x = mshook->pt.x;
 	event.data.mouse.y = mshook->pt.y;
 
+	get_wnd_rect(&event.rc);
+
 	logger(LOG_LEVEL_INFO, "%s [%u]: Button %u  pressed %u time(s). (%u, %u)\n",
 			__FUNCTION__, __LINE__, event.data.mouse.button, event.data.mouse.clicks,
 			event.data.mouse.x, event.data.mouse.y);
@@ -406,6 +423,8 @@ static void process_button_released(MSLLHOOKSTRUCT *mshook, uint16_t button) {
 		event.data.mouse.clicks = click_count;
 		event.data.mouse.x = mshook->pt.x;
 		event.data.mouse.y = mshook->pt.y;
+
+		get_wnd_rect(&event.rc);
 
 		logger(LOG_LEVEL_INFO, "%s [%u]: Button %u clicked %u time(s). (%u, %u)\n",
 				__FUNCTION__, __LINE__, event.data.mouse.button, event.data.mouse.clicks,
@@ -455,6 +474,8 @@ static void process_mouse_moved(MSLLHOOKSTRUCT *mshook) {
 		event.data.mouse.x = mshook->pt.x;
 		event.data.mouse.y = mshook->pt.y;
 
+		get_wnd_rect(&event.rc);
+
 		logger(LOG_LEVEL_INFO, "%s [%u]: Mouse %s to %u, %u.\n",
 				__FUNCTION__, __LINE__,  mouse_dragged ? "dragged" : "moved",
 				event.data.mouse.x, event.data.mouse.y);
@@ -493,6 +514,8 @@ static void process_mouse_wheel(MSLLHOOKSTRUCT *mshook, uint8_t direction) {
 
 	// Set the direction based on what event was received.
 	event.data.wheel.direction = direction;
+
+	get_wnd_rect(&event.rc);
 
 	logger(LOG_LEVEL_INFO, "%s [%u]: Mouse wheel type %u, rotated %i units in the %u direction at %u, %u.\n",
 			__FUNCTION__, __LINE__, event.data.wheel.type,

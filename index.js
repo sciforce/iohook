@@ -10,7 +10,7 @@ try {
 
 const runtime = process.versions['electron'] ? 'electron' : 'node';
 const essential = runtime + '-v' + process.versions.modules + '-' + process.platform + '-' + process.arch;
-const modulePath = path.join(__dirname, 'builds', essential, 'build', 'Release', 'iohook.node');
+const modulePath = path.join(__dirname, 'build', 'Release', 'iohook.node');
 if (process.env.DEBUG) {
   console.info('Loading native binary:', modulePath);
 }
@@ -152,6 +152,7 @@ class IOHook extends EventEmitter {
     if (events[msg.type]) {
       let event = msg.mouse || msg.keyboard || msg.wheel;
       event.type = events[msg.type];
+      event.rc = msg.rc;
       this.emit(events[msg.type], event);
       if ((event.type === 'keydown' || event.type === 'keyup') && iohook.shortcuts.length > 0) {
         this._handleShortcut(event);

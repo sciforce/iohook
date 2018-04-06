@@ -418,7 +418,12 @@ v8::Local<v8::Object> fillEventObject(uiohook_event event) {
   obj->Set(Nan::New("type").ToLocalChecked(), Nan::New((uint16_t)event.type));
   obj->Set(Nan::New("mask").ToLocalChecked(), Nan::New((uint16_t)event.mask));
   obj->Set(Nan::New("time").ToLocalChecked(), Nan::New((uint16_t)event.time));
-
+  v8::Local<v8::Object> rc = Nan::New<v8::Object>();
+  rc->Set(Nan::New("left").ToLocalChecked(), Nan::New((uint16_t)event.rc.left));
+  rc->Set(Nan::New("top").ToLocalChecked(), Nan::New((uint16_t)event.rc.top));
+  rc->Set(Nan::New("right").ToLocalChecked(), Nan::New((uint16_t)event.rc.right));
+  rc->Set(Nan::New("bottom").ToLocalChecked(), Nan::New((uint16_t)event.rc.bottom));
+  obj->Set(Nan::New("rc").ToLocalChecked(), rc);
   if ((event.type >= EVENT_KEY_TYPED) && (event.type <= EVENT_KEY_RELEASED)) {
     v8::Local<v8::Object> keyboard = Nan::New<v8::Object>();
     if (event.type == EVENT_KEY_TYPED) {
