@@ -114,10 +114,18 @@ typedef struct _mouse_wheel_event_data {
 	uint8_t direction;
 } mouse_wheel_event_data;
 
+typedef struct _rect {
+	uint16_t left;
+	uint16_t top;
+	uint16_t right;
+	uint16_t bottom;
+} rect;
+
 typedef struct _uiohook_event {
 	event_type type;
 	uint64_t time;
 	uint16_t mask;
+	rect rc;
 	uint16_t reserved;
 	union {
 		keyboard_event_data keyboard;
