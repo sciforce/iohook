@@ -51,7 +51,7 @@
 #define KEYEVENTF_KEYDOWN		0x0000
 #endif
 
-#define MAX_WINDOWS_COORD_VALUE 65535
+#define MAX_WINDOWS_COORD_VALUE 65535.0
 
 static UINT keymask_lookup[8] = {
 	VK_LSHIFT,
