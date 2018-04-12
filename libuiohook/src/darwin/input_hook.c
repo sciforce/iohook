@@ -100,6 +100,10 @@ static uiohook_event event;
 // Event dispatch callback.
 static dispatcher_t dispatcher = NULL;
 
+// Window list options
+static CGWindowListOption listOptions = kCGWindowListOptionAll | kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements;
+
+
 UIOHOOK_API void hook_set_dispatch_proc(dispatcher_t dispatch_proc) {
 	logger(LOG_LEVEL_DEBUG,	"%s [%u]: Setting new dispatch callback to %#p.\n",
 			__FUNCTION__, __LINE__, dispatch_proc);
@@ -199,6 +203,53 @@ static void keycode_to_lookup(void *info) {
 		// Preform Unicode lookup.
 		data->length = keycode_to_unicode(data->event, data->buffer, KEY_BUFFER_SIZE);
 	}
+}
+
+static void get_wnd_rect(rect* rc, CGEventRef event_ref) {
+	// Get event target PID
+	long etpid = CGEventGetIntegerValueField(event_ref, kCGEventTargetUnixProcessID);
+
+	// get all windows on the current screen
+	CFArrayRef windowList = CGWindowListCopyWindowInfo(listOptions, kCGNullWindowID);
+
+	// find the current window, that will be the first one on layer 0
+	CFIndex windowNum = CFArrayGetCount(windowList);
+	for (int i=0;i<(int)windowNum;i++) {
+		CFDictionaryRef wndDictionary = (CFDictionaryRef)CFArrayGetValueAtIndex(windowList, i);
+
+		// Get layer
+		CFNumberRef currentWindowLayer = (CFNumberRef)CFDictionaryGetValue(wndDictionary, kCGWindowLayer);
+		long layer = LONG_MAX;
+		CFNumberGetValue(currentWindowLayer, kCFNumberLongType, &layer);
+
+		if (layer > 0)
+			continue;
+
+		// Get current window PID and compare it to event target PID
+		CFNumberRef currentWindowPID = (CFNumberRef)CFDictionaryGetValue(wndDictionary, kCGWindowOwnerPID);
+		long wpid = LONG_MAX;
+		CFNumberGetValue(currentWindowPID, kCFNumberLongType, &wpid);
+
+		if (wpid != etpid)
+			continue;
+
+		// Log the current window PID
+		logger(LOG_LEVEL_WARN, "%s [%u]: PID: %u.\n",
+			   __FUNCTION__, __LINE__, CGEventGetIntegerValueField(event_ref, kCGEventTargetUnixProcessID));
+
+		// Grab the Window Bounds
+		CGRect _rc;
+		CFDictionaryRef bounds = (CFDictionaryRef)CFDictionaryGetValue(wndDictionary, kCGWindowBounds);
+		CGRectMakeWithDictionaryRepresentation(bounds, &_rc);
+		rc->left = _rc.origin.x;
+		rc->top = _rc.origin.y;
+		rc->right = _rc.origin.x + _rc.size.width;
+		rc->bottom = _rc.origin.y + _rc.size.height;
+
+		break;
+	}
+
+	CFRelease(windowList);
 }
 
 #if ! defined(USE_CARBON_LEGACY) && defined(USE_COREFOUNDATION)
@@ -369,6 +420,8 @@ static inline void process_key_pressed(uint64_t timestamp, CGEventRef event_ref)
 	event.data.keyboard.rawcode = keycode;
 	event.data.keyboard.keychar = CHAR_UNDEFINED;
 
+	get_wnd_rect(&event.rc, event_ref);
+
 	logger(LOG_LEVEL_INFO,	"%s [%u]: Key %#X pressed. (%#X)\n",
 			__FUNCTION__, __LINE__, event.data.keyboard.keycode, event.data.keyboard.rawcode);
 
@@ -470,6 +523,8 @@ static inline void process_key_released(uint64_t timestamp, CGEventRef event_ref
 	event.data.keyboard.keycode = keycode_to_scancode(keycode);
 	event.data.keyboard.rawcode = keycode;
 	event.data.keyboard.keychar = CHAR_UNDEFINED;
+
+	get_wnd_rect(&event.rc, event_ref);
 
 	logger(LOG_LEVEL_INFO,	"%s [%u]: Key %#X released. (%#X)\n",
 			__FUNCTION__, __LINE__, event.data.keyboard.keycode, event.data.keyboard.rawcode);
@@ -803,6 +858,8 @@ static inline void process_button_pressed(uint64_t timestamp, CGEventRef event_r
 	event.data.mouse.x = event_point.x;
 	event.data.mouse.y = event_point.y;
 
+	get_wnd_rect(&event.rc, event_ref);
+
 	logger(LOG_LEVEL_INFO,	"%s [%u]: Button %u pressed %u time(s). (%u, %u)\n",
 			__FUNCTION__, __LINE__, event.data.mouse.button, event.data.mouse.clicks,
 			event.data.mouse.x, event.data.mouse.y);
@@ -825,6 +882,8 @@ static inline void process_button_released(uint64_t timestamp, CGEventRef event_
 	event.data.mouse.clicks = click_count;
 	event.data.mouse.x = event_point.x;
 	event.data.mouse.y = event_point.y;
+
+	get_wnd_rect(&event.rc, event_ref);
 
 	logger(LOG_LEVEL_INFO,	"%s [%u]: Button %u released %u time(s). (%u, %u)\n",
 			__FUNCTION__, __LINE__, event.data.mouse.button, event.data.mouse.clicks,
@@ -886,6 +945,8 @@ static inline void process_mouse_moved(uint64_t timestamp, CGEventRef event_ref)
 	event.data.mouse.clicks = click_count;
 	event.data.mouse.x = event_point.x;
 	event.data.mouse.y = event_point.y;
+
+	get_wnd_rect(&event.rc, event_ref);
 
 	logger(LOG_LEVEL_INFO,	"%s [%u]: Mouse %s to %u, %u.\n",
 			__FUNCTION__, __LINE__, mouse_dragged ? "dragged" : "moved",
@@ -962,6 +1023,8 @@ static inline void process_mouse_wheel(uint64_t timestamp, CGEventRef event_ref)
 			// Wheel Rotated Left or Right.
 			event.data.wheel.direction = WHEEL_HORIZONTAL_DIRECTION;
 		}
+
+		get_wnd_rect(&event.rc, event_ref);
 
 		logger(LOG_LEVEL_INFO,	"%s [%u]: Mouse wheel type %u, rotated %i units in the %u direction at %u, %u.\n",
 				__FUNCTION__, __LINE__, event.data.wheel.type,
